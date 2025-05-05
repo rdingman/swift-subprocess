@@ -437,6 +437,8 @@ extension CreatedPipe {
                     }
                 }
             )
+
+            dispatchIO.setLimit(lowWater: 0)
             readEnd = .init(
                 dispatchIO,
                 closeWhenDone: readFileDescriptor.closeWhenDone
@@ -459,7 +461,7 @@ extension TrackedDispatchIO {
             var buffer: DispatchData = .empty
             self.dispatchIO.read(
                 offset: 0,
-                length: 1,
+                length: maxLength,
                 queue: .global()
             ) { done, data, error in
                 print("**** Done: \(done), Data: \(String(describing: data)), Error: \(error), Maxlength: \(maxLength)")
