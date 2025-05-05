@@ -459,7 +459,7 @@ extension TrackedDispatchIO {
             var buffer: DispatchData = .empty
             self.dispatchIO.read(
                 offset: 0,
-                length: maxLength,
+                length: 1,
                 queue: .global()
             ) { done, data, error in
                 print("**** Done: \(done), Data: \(String(describing: data)), Error: \(error), Maxlength: \(maxLength)")
