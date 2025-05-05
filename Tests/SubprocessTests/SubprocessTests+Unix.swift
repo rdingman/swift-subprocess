@@ -665,6 +665,32 @@ extension SubprocessUnixTests {
         #expect(catResult.terminationStatus.isSuccess)
         #expect(catResult.standardError == expected)
     }
+
+    @Test func testCollectedErrorSequence() async throws {
+        guard #available(SubprocessSpan , *) else {
+            return
+        }
+        // Make ure we can capture long text on standard error
+        let expected: Data = try Data(
+            contentsOf: URL(filePath: theMysteriousIsland.string)
+        )
+        let catResult = try await Subprocess.run(
+            .path("/bin/bash"),
+            arguments: ["-c", "cat \(theMysteriousIsland.string) 1>&2"],
+            output: .discarded,
+            error: .sequence,
+            body: { (execution, _) in
+                var buffer = Data()
+                for try await chunk in execution.standardError {
+                    let currentChunk = chunk._withUnsafeBytes { Data($0) }
+                    buffer += currentChunk
+                }
+                return buffer
+            }
+        )
+        #expect(catResult.terminationStatus.isSuccess)
+        #expect(catResult.value == expected)
+    }
 }
 
 // MARK: - PlatformOption Tests

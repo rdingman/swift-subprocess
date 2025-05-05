@@ -462,6 +462,7 @@ extension TrackedDispatchIO {
                 length: maxLength,
                 queue: .global()
             ) { done, data, error in
+                print("**** Done: \(done), Data: \(String(describing: data)), Error: \(error), Maxlength: \(maxLength)")
                 if error != 0 {
                     continuation.resume(
                         throwing: SubprocessError(
