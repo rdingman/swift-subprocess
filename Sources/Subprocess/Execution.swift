@@ -122,7 +122,7 @@ extension Execution where Error == SequenceOutput {
     /// via pipe under the hood and each pipe can only be consumed once.
     public var standardError: AsyncBufferSequence {
         let consumptionState = self.outputConsumptionState.bitwiseXor(
-            OutputConsumptionState.standardOutputConsumed
+            OutputConsumptionState.standardErrorConsumed
         )
 
         guard consumptionState.contains(.standardErrorConsumed),
