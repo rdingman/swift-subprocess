@@ -15,6 +15,8 @@
 @preconcurrency import SystemPackage
 #endif
 
+internal import Dispatch
+
 #if SubprocessSpan
 @available(SubprocessSpan, *)
 #endif
@@ -30,108 +32,85 @@ public struct AsyncBufferSequence: AsyncSequence, Sendable {
         private var buffer: [UInt8]
         private var currentPosition: Int
         private var finished: Bool
-        private var streamInterator: AsyncThrowingStream<StreamStatus, Swift.Error>.AsyncIterator?
+        private var streamIterator: AsyncThrowingStream<StreamStatus, Swift.Error>.AsyncIterator
 
         internal init(diskIO: TrackedPlatformDiskIO) {
             self.diskIO = diskIO
             self.buffer = []
             self.currentPosition = 0
             self.finished = false
+            self.streamIterator = Self.createDataStream(with: diskIO.dispatchIO).makeAsyncIterator()
         }
 
         public mutating func next() async throws -> SequenceOutput.Buffer? {
-//            let data = try await self.diskIO.readChunk(
-//                upToLength: readBufferSize
-//            )
-//            if data == nil {
-//                // We finished reading. Close the file descriptor now
-//                try self.diskIO.safelyClose()
-//                return nil
-//            }
-//            return data
-
-            let data: SequenceOutput.Buffer?
-            if var streamInterator {
-                let status = try await streamInterator.next()
-
-                if let status {
-                    if status.done {
-                        var streamInterator = createDataStream().makeAsyncIterator()
-                        self.streamInterator = streamInterator
-
-                        if let buffer = status.buffer, !buffer.isEmpty {
-                            data = buffer
-                        } else {
-                            let status = try await streamInterator.next()
-                            data = status?.buffer
-                        }
-                    } else {
-                        data = status.buffer
-                    }
-                } else {
-                    var streamInterator = createDataStream().makeAsyncIterator()
-                    self.streamInterator = streamInterator
-
-                    let status = try await streamInterator.next()
-                    data = status?.buffer
+            if let status = try await streamIterator.next() {
+                switch status {
+                case .data(let data):
+                    return data
+                    
+                case .endOfStream(let data):
+                    streamIterator = Self.createDataStream(with: diskIO.dispatchIO).makeAsyncIterator()
+                    return data
+                    
+                case .endOfFile:
+                    try self.diskIO.safelyClose()
+                    return nil
                 }
             } else {
-                var streamInterator = createDataStream().makeAsyncIterator()
-                self.streamInterator = streamInterator
-
-                let status = try await streamInterator.next()
-                data = status?.buffer
-            }
-
-            if data == nil {
-                // We finished reading. Close the file descriptor now
                 try self.diskIO.safelyClose()
                 return nil
             }
-            
-            return data
         }
 
-        private struct StreamStatus {
-            let done: Bool
-            let buffer: SequenceOutput.Buffer?
+        private enum StreamStatus {
+            case data(SequenceOutput.Buffer)
+            case endOfStream(SequenceOutput.Buffer)
+            case endOfFile
         }
 
-        private func createDataStream() -> AsyncThrowingStream<StreamStatus, Swift.Error> {
-                    return AsyncThrowingStream<StreamStatus, Swift.Error> { continuation in
-            //            continuation.onTermination { _ in
-            //                try readFd.safelyClose()
-            //            }
-            
-                        diskIO.dispatchIO.read(
-                            offset: 0,
-                            length: readBufferSize,
-                            queue: .global()
-                        ) { done, data, error in
-                            if error != 0 {
-                                continuation.finish(throwing: SubprocessError(
-                                    code: .init(.failedToReadFromSubprocess),
-                                    underlyingError: .init(rawValue: error)
-                                ))
-                                return
-                            }
-            
-                            let buffer: SequenceOutput.Buffer?
-                            if let data, !data.isEmpty {
-                                buffer = SequenceOutput.Buffer(data: data)
-                            } else {
-                                buffer = nil
-                            }
-
-                            let status = StreamStatus(done: done, buffer: buffer)
-                            continuation.yield(status)
-
-                            if done {
-                                continuation.finish()
-                            }
-                        }
+        private static func createDataStream(with dispatchIO: DispatchIO) -> AsyncThrowingStream<StreamStatus, Swift.Error> {
+            return AsyncThrowingStream<StreamStatus, Swift.Error> { continuation in
+                dispatchIO.read(
+                    offset: 0,
+                    length: readBufferSize,
+                    queue: .global()
+                ) { done, data, error in
+                    if error != 0 {
+                        continuation.finish(throwing: SubprocessError(
+                            code: .init(.failedToReadFromSubprocess),
+                            underlyingError: .init(rawValue: error)
+                        ))
+                        return
                     }
 
+                    // Treat empty data and nil as the same
+                    let buffer = data.map { $0.isEmpty ? nil : $0 } ?? nil
+                    let status: StreamStatus
+
+                    switch (buffer, done) {
+                    case (.some(let data), false):
+                        // This stream has data, but didn't read as much as it was asked.
+                        status = .data(SequenceOutput.Buffer(data: data))
+
+                    case (.some(let data), true):
+                        // This stream has data, but has read as much as it was asked.
+                        status = .endOfStream(SequenceOutput.Buffer(data: data))
+
+                    case (nil, false):
+                        status = .data(SequenceOutput.Buffer(data: .empty))
+
+                    case (nil, true):
+                        // This stream has no data and has indicated it is done.
+                        status = .endOfFile
+                    }
+
+                    continuation.yield(status)
+
+                    if done {
+                        continuation.finish()
+                    }
+                }
+            }
         }
     }
 
