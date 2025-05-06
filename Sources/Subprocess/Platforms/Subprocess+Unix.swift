@@ -438,8 +438,8 @@ extension CreatedPipe {
                 }
             )
 
-            dispatchIO.setLimit(lowWater: 0)
-            dispatchIO.setLimit(lowWater: 1)
+//            dispatchIO.setLimit(lowWater: 0)
+//            dispatchIO.setLimit(highWater: 1)
             readEnd = .init(
                 dispatchIO,
                 closeWhenDone: readFileDescriptor.closeWhenDone
@@ -458,46 +458,105 @@ extension TrackedDispatchIO {
     @available(SubprocessSpan, *)
 #endif
     package func readChunk(upToLength maxLength: Int) async throws -> SequenceOutput.Buffer? {
-        return try await withCheckedThrowingContinuation { continuation in
-            var buffer: DispatchData = .empty
+        print("**** Being chunked read ****")
+        var buffer: DispatchData = .empty
+        let stream = AsyncThrowingStream<DispatchData, Swift.Error> { continuation in
             self.dispatchIO.read(
                 offset: 0,
                 length: maxLength,
                 queue: .global()
             ) { done, data, error in
-                print("**** Done: \(done), Data: \(String(describing: data)), Error: \(error), Maxlength: \(maxLength)")
                 if error != 0 {
-                    continuation.resume(
-                        throwing: SubprocessError(
-                            code: .init(.failedToReadFromSubprocess),
-                            underlyingError: .init(rawValue: error)
-                        )
-                    )
+                    print("Failed to read: \(error)")
+                    continuation.finish(throwing: SubprocessError(
+                        code: .init(.failedToReadFromSubprocess),
+                        underlyingError: .init(rawValue: error)
+                    ))
                     return
                 }
-                if let data = data {
-                    if buffer.isEmpty {
-                        buffer = data
-                    } else {
-                        buffer.append(data)
-                    }
+
+                if let data {
+                    print("Yielding data: \(data.count)")
+
+//                    if data.isEmpty == false {
+                    continuation.yield(data)
+//                    }
+                } else {
+                    print("**** Found nil data")
                 }
+
                 if done {
-                    if !buffer.isEmpty {
-                        continuation.resume(returning: SequenceOutput.Buffer(data: buffer))
-                    } else {
-                        continuation.resume(returning: nil)
-                    }
-//                } else {
+                    print("Finishing")
+                    continuation.finish()
+                }
+            }
+        }
+
+        for try await data in stream {
+            print("Read data: \(data.count)")
+            if buffer.isEmpty {
+                buffer = data
+            } else {
+                buffer.append(data)
+            }
+            if buffer.isEmpty {
+                print("*** Buffer is empty at the end of the loop")
+            }
+        }
+
+        print("**** End chunked read ****")
+
+        if buffer.isEmpty {
+            print("**** returning nil buffer")
+            return nil
+        } else {
+            return SequenceOutput.Buffer(data: buffer)
+        }
+
+
+    }
+
+    //    package func readChunk(upToLength maxLength: Int) async throws -> SequenceOutput.Buffer? {
+//        return try await withCheckedThrowingContinuation { continuation in
+//            var buffer: DispatchData = .empty
+//            self.dispatchIO.read(
+//                offset: 0,
+//                length: maxLength,
+//                queue: .global()
+//            ) { done, data, error in
+//                print("**** Done: \(done), Data: \(String(describing: data)), Error: \(error), Maxlength: \(maxLength)")
+//                if error != 0 {
+//                    continuation.resume(
+//                        throwing: SubprocessError(
+//                            code: .init(.failedToReadFromSubprocess),
+//                            underlyingError: .init(rawValue: error)
+//                        )
+//                    )
+//                    return
+//                }
+//                if let data = data {
+//                    if buffer.isEmpty {
+//                        buffer = data
+//                    } else {
+//                        buffer.append(data)
+//                    }
+//                }
+//                if done {
 //                    if !buffer.isEmpty {
 //                        continuation.resume(returning: SequenceOutput.Buffer(data: buffer))
 //                    } else {
 //                        continuation.resume(returning: nil)
 //                    }
-                }
-            }
-        }
-    }
+////                } else {
+////                    if !buffer.isEmpty {
+////                        continuation.resume(returning: SequenceOutput.Buffer(data: buffer))
+////                    } else {
+////                        continuation.resume(returning: nil)
+////                    }
+//                }
+//            }
+//        }
+//    }
 
     internal func readUntilEOF(
         upToLength maxLength: Int,

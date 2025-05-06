@@ -27,6 +27,8 @@ import Musl
 import WinSDK
 #endif
 
+internal import Dispatch
+
 /// An object that repersents a subprocess that has been
 /// executed. You can use this object to send signals to the
 /// child process as well as stream its output and error.
@@ -108,6 +110,37 @@ extension Execution where Output == SequenceOutput {
             fatalError("The standard output has already been consumed")
         }
         return AsyncBufferSequence(diskIO: readFd)
+
+//        return AsyncThrowingStream<SequenceOutput.Buffer, Swift.Error> { continuation in
+////            continuation.onTermination { _ in
+////                try readFd.safelyClose()
+////            }
+//
+//            readFd.dispatchIO.read(
+//                offset: 0,
+//                length: readBufferSize,
+//                queue: .global()
+//            ) { done, data, error in
+//                if error != 0 {
+//                    continuation.finish(throwing: SubprocessError(
+//                        code: .init(.failedToReadFromSubprocess),
+//                        underlyingError: .init(rawValue: error)
+//                    ))
+//                    return
+//                }
+//
+//                if let data, data.isEmpty == false {
+////                    print("Yielding data: \(data.count)")
+//                    continuation.yield(SequenceOutput.Buffer(data: data))
+//                }
+//
+//                if done {
+////                    print("Finishing")
+////                    continuation.finish()
+//                }
+//            }
+//        }
+
     }
 }
 
@@ -131,6 +164,36 @@ extension Execution where Error == SequenceOutput {
             fatalError("The standard output has already been consumed")
         }
         return AsyncBufferSequence(diskIO: readFd)
+
+//        return AsyncThrowingStream<SequenceOutput.Buffer, Swift.Error> { continuation in
+////            continuation.onTermination { _ in
+////                try readFd.safelyClose()
+////            }
+//
+//            readFd.dispatchIO.read(
+//                offset: 0,
+//                length: readBufferSize,
+//                queue: .global()
+//            ) { done, data, error in
+//                if error != 0 {
+//                    continuation.finish(throwing: SubprocessError(
+//                        code: .init(.failedToReadFromSubprocess),
+//                        underlyingError: .init(rawValue: error)
+//                    ))
+//                    return
+//                }
+//
+//                if let data, data.isEmpty == false {
+//                    print("Yielding data: \(data.count)")
+//                    continuation.yield(SequenceOutput.Buffer(data: data))
+//                }
+//
+//                if done {
+//                    print("Finishing")
+////                    continuation.finish()
+//                }
+//            }
+//        }
     }
 }
 

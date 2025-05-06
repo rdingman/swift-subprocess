@@ -649,14 +649,27 @@ extension SubprocessUnixTests {
         #expect(expected.elementsEqual(catResult.standardOutput))
     }
 
+//    @Test(
+//        .enabled(
+//            if: {
+//                if #available(SubprocessSpan , *) {
+//                    return true
+//                } else {
+//                    return false
+//                }
+//            }(),
+//            "This test requires SubprocessSpan"
+//        )
+//    )
     @Test func testCollectedError() async throws {
-        guard #available(SubprocessSpan , *) else {
-            return
-        }
+//        guard #available(SubprocessSpan , *) else {
+//            return
+//        }
         // Make ure we can capture long text on standard error
         let expected: Data = try Data(
             contentsOf: URL(filePath: theMysteriousIsland.string)
         )
+        print("Expected: \(expected)")
         let catResult = try await Subprocess.run(
             .path("/bin/bash"),
             arguments: ["-c", "cat \(theMysteriousIsland.string) 1>&2"],
@@ -664,12 +677,15 @@ extension SubprocessUnixTests {
         )
         #expect(catResult.terminationStatus.isSuccess)
         #expect(catResult.standardError == expected)
+        #expect(catResult.standardError.count > 0)
+//        #expect(expected.count == 0, "Foo: \(expected.count)")
+        #expect(expected.count > 0, "Foo: \(expected.count)")
     }
 
     @Test func testCollectedErrorSequence() async throws {
-        guard #available(SubprocessSpan , *) else {
-            return
-        }
+//        guard #available(SubprocessSpan , *) else {
+//            return
+//        }
         // Make ure we can capture long text on standard error
         let expected: Data = try Data(
             contentsOf: URL(filePath: theMysteriousIsland.string)
@@ -690,6 +706,8 @@ extension SubprocessUnixTests {
         )
         #expect(catResult.terminationStatus.isSuccess)
         #expect(catResult.value == expected)
+        #expect(catResult.value.count == expected.count)
+        print(expected)
     }
 }
 
