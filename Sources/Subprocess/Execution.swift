@@ -109,38 +109,15 @@ extension Execution where Output == SequenceOutput {
         else {
             fatalError("The standard output has already been consumed")
         }
-        return AsyncBufferSequence(diskIO: readFd)
 
-//        return AsyncThrowingStream<SequenceOutput.Buffer, Swift.Error> { continuation in
-////            continuation.onTermination { _ in
-////                try readFd.safelyClose()
-////            }
-//
-//            readFd.dispatchIO.read(
-//                offset: 0,
-//                length: readBufferSize,
-//                queue: .global()
-//            ) { done, data, error in
-//                if error != 0 {
-//                    continuation.finish(throwing: SubprocessError(
-//                        code: .init(.failedToReadFromSubprocess),
-//                        underlyingError: .init(rawValue: error)
-//                    ))
-//                    return
-//                }
-//
-//                if let data, data.isEmpty == false {
-////                    print("Yielding data: \(data.count)")
-//                    continuation.yield(SequenceOutput.Buffer(data: data))
-//                }
-//
-//                if done {
-////                    print("Finishing")
-////                    continuation.finish()
-//                }
-//            }
-//        }
+        if let lowWater = output.lowWater {
+            readFd.dispatchIO.setLimit(lowWater: lowWater)
+        }
 
+        if let highWater = output.highWater {
+            readFd.dispatchIO.setLimit(highWater: highWater)
+        }
+        return AsyncBufferSequence(diskIO: readFd, bufferSize: output.bufferSize)
     }
 }
 
@@ -163,37 +140,16 @@ extension Execution where Error == SequenceOutput {
         else {
             fatalError("The standard output has already been consumed")
         }
-        return AsyncBufferSequence(diskIO: readFd)
 
-//        return AsyncThrowingStream<SequenceOutput.Buffer, Swift.Error> { continuation in
-////            continuation.onTermination { _ in
-////                try readFd.safelyClose()
-////            }
-//
-//            readFd.dispatchIO.read(
-//                offset: 0,
-//                length: readBufferSize,
-//                queue: .global()
-//            ) { done, data, error in
-//                if error != 0 {
-//                    continuation.finish(throwing: SubprocessError(
-//                        code: .init(.failedToReadFromSubprocess),
-//                        underlyingError: .init(rawValue: error)
-//                    ))
-//                    return
-//                }
-//
-//                if let data, data.isEmpty == false {
-//                    print("Yielding data: \(data.count)")
-//                    continuation.yield(SequenceOutput.Buffer(data: data))
-//                }
-//
-//                if done {
-//                    print("Finishing")
-////                    continuation.finish()
-//                }
-//            }
-//        }
+        if let lowWater = error.lowWater {
+            readFd.dispatchIO.setLimit(lowWater: lowWater)
+        }
+
+        if let highWater = error.highWater {
+            readFd.dispatchIO.setLimit(highWater: highWater)
+        }
+
+        return AsyncBufferSequence(diskIO: readFd, bufferSize: error.bufferSize)
     }
 }
 

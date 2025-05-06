@@ -29,17 +29,19 @@ public struct AsyncBufferSequence: AsyncSequence, Sendable {
         public typealias Element = SequenceOutput.Buffer
 
         private let diskIO: TrackedPlatformDiskIO
+        private let bufferSize: Int
         private var buffer: [UInt8]
         private var currentPosition: Int
         private var finished: Bool
         private var streamIterator: AsyncThrowingStream<StreamStatus, Swift.Error>.AsyncIterator
 
-        internal init(diskIO: TrackedPlatformDiskIO) {
+        internal init(diskIO: TrackedPlatformDiskIO, bufferSize: Int) {
             self.diskIO = diskIO
+            self.bufferSize = bufferSize
             self.buffer = []
             self.currentPosition = 0
             self.finished = false
-            self.streamIterator = Self.createDataStream(with: diskIO.dispatchIO).makeAsyncIterator()
+            self.streamIterator = Self.createDataStream(with: diskIO.dispatchIO, bufferSize: bufferSize).makeAsyncIterator()
         }
 
         public mutating func next() async throws -> SequenceOutput.Buffer? {
@@ -47,11 +49,11 @@ public struct AsyncBufferSequence: AsyncSequence, Sendable {
                 switch status {
                 case .data(let data):
                     return data
-                    
+
                 case .endOfStream(let data):
-                    streamIterator = Self.createDataStream(with: diskIO.dispatchIO).makeAsyncIterator()
+                    streamIterator = Self.createDataStream(with: diskIO.dispatchIO, bufferSize: bufferSize).makeAsyncIterator()
                     return data
-                    
+
                 case .endOfFile:
                     try self.diskIO.safelyClose()
                     return nil
@@ -68,11 +70,11 @@ public struct AsyncBufferSequence: AsyncSequence, Sendable {
             case endOfFile
         }
 
-        private static func createDataStream(with dispatchIO: DispatchIO) -> AsyncThrowingStream<StreamStatus, Swift.Error> {
+        private static func createDataStream(with dispatchIO: DispatchIO, bufferSize: Int) -> AsyncThrowingStream<StreamStatus, Swift.Error> {
             return AsyncThrowingStream<StreamStatus, Swift.Error> { continuation in
                 dispatchIO.read(
                     offset: 0,
-                    length: readBufferSize,
+                    length: bufferSize,
                     queue: .global()
                 ) { done, data, error in
                     if error != 0 {
@@ -115,13 +117,15 @@ public struct AsyncBufferSequence: AsyncSequence, Sendable {
     }
 
     private let diskIO: TrackedPlatformDiskIO
+    private let bufferSize: Int
 
-    internal init(diskIO: TrackedPlatformDiskIO) {
+    internal init(diskIO: TrackedPlatformDiskIO, bufferSize: Int) {
         self.diskIO = diskIO
+        self.bufferSize = bufferSize
     }
 
     public func makeAsyncIterator() -> Iterator {
-        return Iterator(diskIO: self.diskIO)
+        return Iterator(diskIO: self.diskIO, bufferSize: bufferSize)
     }
 }
 
