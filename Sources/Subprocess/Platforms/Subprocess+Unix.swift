@@ -487,6 +487,12 @@ extension TrackedDispatchIO {
                     } else {
                         continuation.resume(returning: nil)
                     }
+                } else {
+                    if !buffer.isEmpty {
+                        continuation.resume(returning: SequenceOutput.Buffer(data: buffer))
+                    } else {
+                        continuation.resume(returning: nil)
+                    }
                 }
             }
         }
