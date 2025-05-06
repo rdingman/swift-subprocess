@@ -40,7 +40,7 @@ public struct AsyncBufferSequence: AsyncSequence, Sendable {
 
         public func next() async throws -> SequenceOutput.Buffer? {
             let data = try await self.diskIO.readChunk(
-                upToLength: readBufferSize
+                upToLength: 1 // readBufferSize
             )
             if data == nil {
                 // We finished reading. Close the file descriptor now
