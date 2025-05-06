@@ -438,7 +438,7 @@ extension CreatedPipe {
                 }
             )
 
-//            dispatchIO.setLimit(lowWater: 0)
+            dispatchIO.setLimit(lowWater: 0)
 //            dispatchIO.setLimit(highWater: 1)
             readEnd = .init(
                 dispatchIO,
